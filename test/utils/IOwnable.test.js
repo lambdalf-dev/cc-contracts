@@ -1,146 +1,168 @@
 const ARTIFACT = require( '../../artifacts/contracts/mocks/utils/Mock_IOwnable.sol/Mock_IOwnable.json' )
-const { TEST_ACTIVATION } = require( '../test-activation-module' )
-const {
-	CST,
-	THROW,
-	ERROR,
-	USER1,
-	USER2,
-	USER_NAMES,
-	PROXY_USER,
-	TOKEN_OWNER,
-	OTHER_OWNER,
-	CONTRACT_DEPLOYER,
-} = require( '../test-var-module' )
+// **************************************
+// *****           IMPORT           *****
+// **************************************
+	const { TEST_ACTIVATION } = require( '../test-activation-module' )
+	const {
+		CST,
+		THROW,
+		ERROR,
+		USER1,
+		USER2,
+		USER_NAMES,
+		PROXY_USER,
+		TOKEN_OWNER,
+		OTHER_OWNER,
+		CONTRACT_DEPLOYER,
+	} = require( '../test-var-module' )
 
-const chai = require( 'chai' )
-const chaiAsPromised = require( 'chai-as-promised' )
-chai.use( chaiAsPromised )
-const expect = chai.expect ;
+	const chai = require( 'chai' )
+	const chaiAsPromised = require( 'chai-as-promised' )
+	chai.use( chaiAsPromised )
+	const expect = chai.expect
 
-const { ethers, waffle } = require( 'hardhat' )
-const { loadFixture, deployContract } = waffle
+	const { ethers, waffle } = require( 'hardhat' )
+	const { loadFixture, deployContract } = waffle
 
-const { getTestCasesByFunction, generateTestCase } = require( '../fail-test-module' )
+	const {
+		getTestCasesByFunction,
+		generateTestCase
+	} = require( '../fail-test-module' )
 
-const {
-	shouldBehaveLikeIOwnable,
-	shouldRevertWhenCallerIsNotContractOwner,
-} = require( '../utils/behavior.IOwnable' )
+	const {
+		shouldBehaveLikeIOwnable,
+		shouldRevertWhenCallerIsNotContractOwner,
+	} = require( '../utils/behavior.IOwnable' )
+// **************************************
 
-// For activating or de-activating test cases
-const TEST = {
-	NAME : 'IOwnable',
-	EVENTS : {
-		OwnershipTransferred : true,
-	},
-	METHODS : {
-		owner             : true,
-		transferOwnership : true,
-	},
-}
-
-// For contract data
-const CONTRACT = {
-	NAME : 'Mock_IOwnable',
-	EVENTS : {
-		OwnershipTransferred : 'OwnershipTransferred',
-	},
-	METHODS : {
-		owner                : {
-			SIGNATURE          : 'owner()',
-			PARAMS             : [],
+// **************************************
+// *****       TEST VARIABLES       *****
+// **************************************
+	// For activating or de-activating test cases
+	const TEST = {
+		NAME : 'IOwnable',
+		EVENTS : {
+			OwnershipTransferred : true,
 		},
-		transferOwnership    : {
-			SIGNATURE          : 'transferOwnership(address)',
-			PARAMS             : [ 'newOwner_' ],
+		METHODS : {
+			owner             : true,
+			transferOwnership : true,
 		},
-	},
-}
-
-const TEST_DATA = {}
-
-let test_contract_params
-
-let contract
-let users = {}
-
-async function fixture() {
-	[
-		test_user1,
-		test_user2,
-		test_proxy_user,
-		test_token_owner,
-		test_other_owner,
-		test_contract_deployer,
-		...addrs
-	] = await ethers.getSigners()
-
-	test_contract_params = []
-	let test_contract = await deployContract( test_contract_deployer, ARTIFACT, test_contract_params )
-	await test_contract.deployed()
-
-	return {
-		test_user1,
-		test_user2,
-		test_contract,
-		test_proxy_user,
-		test_token_owner,
-		test_other_owner,
-		test_contract_deployer,
 	}
-}
 
-function testInvalidInputs ( fixture, test_data ) {
-	describe( 'Invalid inputs', function () {
-		if ( TEST_ACTIVATION.INVALID_INPUT ) {
-			beforeEach( async function () {
-				const {
-					test_user1,
-					test_user2,
-					test_contract,
-					test_proxy_user,
-					test_token_owner,
-					test_other_owner,
-					test_contract_deployer,
-				} = await loadFixture( fixture )
+	// For contract data
+	const CONTRACT = {
+		NAME : 'Mock_IOwnable',
+		EVENTS : {
+			OwnershipTransferred : 'OwnershipTransferred',
+		},
+		METHODS : {
+			owner                : {
+				SIGNATURE          : 'owner()',
+				PARAMS             : [],
+			},
+			transferOwnership    : {
+				SIGNATURE          : 'transferOwnership(address)',
+				PARAMS             : [ 'newOwner_' ],
+			},
+		},
+	}
 
-				contract = test_contract
-				users[ USER1             ] = test_user1
-				users[ USER2             ] = test_user2
-				users[ PROXY_USER        ] = test_proxy_user
-				users[ TOKEN_OWNER       ] = test_token_owner
-				users[ OTHER_OWNER       ] = test_other_owner
-				users[ CONTRACT_DEPLOYER ] = test_contract_deployer
+	const TEST_DATA = {}
 
-				defaultArgs = {}
-				defaultArgs [ CONTRACT.METHODS.owner.SIGNATURE ] = {
-					err  : null,
-					args : []
-				}
-				defaultArgs [ CONTRACT.METHODS.transferOwnership.SIGNATURE ] = {
-					err  : null,
-					args : [
-						users[ USER1 ].address,
-					]
-				}
-			})
+	let test_contract_params
 
-			Object.entries( CONTRACT.METHODS ).forEach( function( [ prop, val ] ) {
-				describe( val.SIGNATURE, function () {
-					const testSuite = getTestCasesByFunction( val.SIGNATURE, val.PARAMS )
+	let contract
+	let users = {}
+// **************************************
 
-					testSuite.forEach( testCase => {
-						it( testCase.test_description, async function () {
-							await generateTestCase( contract, testCase, defaultArgs, prop, val )
+// **************************************
+// *****          FIXTURES          *****
+// **************************************
+	async function fixture() {
+		[
+			test_user1,
+			test_user2,
+			test_proxy_user,
+			test_token_owner,
+			test_other_owner,
+			test_contract_deployer,
+			...addrs
+		] = await ethers.getSigners()
+
+		test_contract_params = []
+		let test_contract = await deployContract( test_contract_deployer, ARTIFACT, test_contract_params )
+		await test_contract.deployed()
+
+		return {
+			test_user1,
+			test_user2,
+			test_contract,
+			test_proxy_user,
+			test_token_owner,
+			test_other_owner,
+			test_contract_deployer,
+		}
+	}
+// **************************************
+
+// **************************************
+// *****        TEST  SUITES        *****
+// **************************************
+	function testInvalidInputs ( fixture, test_data ) {
+		describe( 'Invalid inputs', function () {
+			if ( TEST_ACTIVATION.INVALID_INPUT ) {
+				beforeEach( async function () {
+					const {
+						test_user1,
+						test_user2,
+						test_contract,
+						test_proxy_user,
+						test_token_owner,
+						test_other_owner,
+						test_contract_deployer,
+					} = await loadFixture( fixture )
+
+					contract = test_contract
+					users[ USER1             ] = test_user1
+					users[ USER2             ] = test_user2
+					users[ PROXY_USER        ] = test_proxy_user
+					users[ TOKEN_OWNER       ] = test_token_owner
+					users[ OTHER_OWNER       ] = test_other_owner
+					users[ CONTRACT_DEPLOYER ] = test_contract_deployer
+
+					defaultArgs = {}
+					defaultArgs [ CONTRACT.METHODS.owner.SIGNATURE ] = {
+						err  : null,
+						args : []
+					}
+					defaultArgs [ CONTRACT.METHODS.transferOwnership.SIGNATURE ] = {
+						err  : null,
+						args : [
+							users[ USER1 ].address,
+						]
+					}
+				})
+
+				Object.entries( CONTRACT.METHODS ).forEach( function( [ prop, val ] ) {
+					describe( val.SIGNATURE, function () {
+						const testSuite = getTestCasesByFunction( val.SIGNATURE, val.PARAMS )
+
+						testSuite.forEach( testCase => {
+							it( testCase.test_description, async function () {
+								await generateTestCase( contract, testCase, defaultArgs, prop, val )
+							})
 						})
 					})
 				})
-			})
-		}
-	})
-}
+			}
+		})
+	}
+// **************************************
 
+// **************************************
+// *****          TEST RUN          *****
+// **************************************
 describe( TEST.NAME, function () {
 	if ( TEST_ACTIVATION[ TEST.NAME ] ) {
 		testInvalidInputs( fixture, TEST_DATA )

@@ -6,15 +6,15 @@
 
 pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
-import '../tokens/ERC721/ERC721Batch.sol';
+import '../tokens/ERC721/extensions/ERC721BatchEnumerable.sol';
+import '../tokens/ERC721/extensions/ERC721BatchStakable.sol';
 import '../utils/ERC2981Base.sol';
 import '../utils/IOwnable.sol';
 import '../utils/IPausable.sol';
 import '../utils/ITradable.sol';
 import '../utils/IWhitelistable.sol';
 
-contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, IPausable, ITradable, IWhitelistable {
+contract CCFoundersKeys is ERC721BatchEnumerable, ERC721BatchStakable, ERC2981Base, IOwnable, IPausable, ITradable, IWhitelistable {
 	// Events
 	event PaymentReleased( address indexed from, address[] indexed tos, uint256[] indexed amounts );
 
@@ -56,9 +56,6 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 	// Mapping of Anon holders to amount of free key claimable
 	mapping( address => uint256 ) public anonClaimList;
 
-	// Mapping of tokenId to stakeholder address
-	mapping( uint256 => address ) internal _ownerOfStaked;
-
 	uint256 private _reserve;
 
 	constructor(
@@ -71,7 +68,7 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		string memory name_,
 		string memory symbol_,
 		string memory baseURI_,
-		address devAddress_,
+		// address devAddress_,
 		address[] memory wallets_
 	) {
 		address _contractOwner_ = _msgSender();
@@ -83,42 +80,17 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		_CC_CHARITY       = wallets_[ 1 ];
 		_CC_FOUNDERS      = wallets_[ 2 ];
 		_CC_COMMUNITY     = wallets_[ 3 ];
-		_reserve          = reserve_ - 5;
+		_reserve          = reserve_;
 		MAX_BATCH         = maxBatch_;
 		MAX_SUPPLY        = maxSupply_;
 		WL_MINT_PRICE     = wlMintPrice_;
 		PUBLIC_MINT_PRICE = publicMintPrice_;
-		_mintAndStake( devAddress_, 5 );
+		// _mintAndStake( devAddress_, 5 );
 	}
 
 	// **************************************
 	// *****          INTERNAL          *****
 	// **************************************
-		/**
-		* @dev Internal function returning the number of tokens owned by `tokenOwner_`.
-		*/
-		function _balanceOf( address tokenOwner_ ) internal view virtual override returns ( uint256 balance ) {
-			return _balanceOfStaked( tokenOwner_ ) + super._balanceOf( tokenOwner_ );
-		}
-
-		/**
-		* @dev Internal function returning the number of tokens staked by `tokenOwner_`.
-		*/
-		function _balanceOfStaked( address tokenOwner_ ) internal view returns ( uint256 ) {
-			if ( tokenOwner_ == address( 0 ) ) {
-				return 0;
-			}
-
-			uint256 _supplyMinted_ = _supplyMinted();
-			uint256 _count_ = 0;
-			for ( uint256 i; i < _supplyMinted_; i++ ) {
-				if ( _ownerOfStaked[ i ] == tokenOwner_ ) {
-					_count_++;
-				}
-			}
-			return _count_;
-		}
-
 		/**
 		* @dev Internal function returning whether `operator_` is allowed to manage tokens on behalf of `tokenOwner_`.
 		* 
@@ -130,21 +102,6 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		function _isApprovedForAll( address tokenOwner_, address operator_ ) internal view virtual override returns ( bool ) {
 			return _isRegisteredProxy( tokenOwner_, operator_ ) ||
 						 super._isApprovedForAll( tokenOwner_, operator_ );
-		}
-
-		/**
-		* @dev Internal function that mints `qtyStaked_` tokens and stakes them to the count of `to_`.
-		*/
-		function _mintAndStake( address tokenOwner_, uint256 qtyStaked_ ) internal {
-			uint256 _currentToken_ = _supplyMinted();
-			uint256 _lastToken_ = _currentToken_ + qtyStaked_;
-
-			while ( _currentToken_ < _lastToken_ ) {
-				_ownerOfStaked[ _currentToken_ ] = tokenOwner_;
-				_currentToken_ ++;
-			}
-
-			_mint( address( this ), qtyStaked_ );
 		}
 
 		/**
@@ -172,22 +129,7 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 				revert CCFoundersKeys_TRANSFER_FAIL();
 			}
 		}
-
-		/**
-		* @dev Internal function that stakes the token number `tokenId_` to the count of `tokenOwner_`.
-		*/
-		function _stake( address tokenOwner_, uint256 tokenId_ ) internal {
-			_ownerOfStaked[ tokenId_ ] = tokenOwner_;
-			_transfer( tokenOwner_, address( this ), tokenId_ );
-		}
-
-		/**
-		* @dev Internal function that unstakes the token `tokenId_` and transfers it back to `tokenOwner_`.
-		*/
-		function _unstake( address tokenOwner_, uint256 tokenId_ ) internal {
-			_transfer( address( this ), tokenOwner_, tokenId_ );
-			delete _ownerOfStaked[ tokenId_ ];
-		}
+	// **************************************
 
 	// **************************************
 	// *****           PUBLIC           *****
@@ -202,14 +144,16 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		* - Caller must be whitelisted.
 		*/
 		function claim( uint256 qty_ ) external presaleOpen {
-			uint256 _endSupply_ = _supplyMinted() + qty_;
 			address _account_   = _msgSender();
 			if ( qty_ > anonClaimList[ _account_ ] ) {
 				revert CCFoundersKeys_FORBIDDEN();
 			}
+
+			uint256 _endSupply_ = _supplyMinted() + qty_;
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {
 				revert CCFoundersKeys_MAX_SUPPLY();
 			}
+
 			unchecked {
 				anonClaimList[ _account_ ] -= qty_;
 			}
@@ -224,27 +168,23 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		* - Sale state must be {SaleState.PRESALE}.
 		* - There must be enough tokens left to mint outside of the reserve.
 		* - Caller must be whitelisted.
-		* - `qtyStaked_` cannot be higher than `qty_`.
+		* - If `qtyStaked_` is higher than `qty_`, only `qty_` tokens are staked.
 		*/
 		function claimAndStake( uint256 qty_, uint256 qtyStaked_ ) external presaleOpen {
-			if ( qtyStaked_ > qty_ ) {
-				revert CCFoundersKeys_INSUFFICIENT_KEY_BALANCE();
-			}
-			uint256 _endSupply_ = _supplyMinted() + qty_;
 			address _account_   = _msgSender();
 			if ( qty_ > anonClaimList[ _account_ ] ) {
 				revert CCFoundersKeys_FORBIDDEN();
 			}
+
+			uint256 _endSupply_ = _supplyMinted() + qty_;
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {
 				revert CCFoundersKeys_MAX_SUPPLY();
 			}
+
 			unchecked {
 				anonClaimList[ _account_ ] -= qty_;
 			}
-			_mintAndStake( _account_, qtyStaked_ );
-			if ( qtyStaked_ < qty_ ) {
-				_mint( _account_, qty_ - qtyStaked_ );
-			}
+			_mintAndStake( _account_, qty_, qtyStaked_ );
 		}
 
 		/**
@@ -259,13 +199,15 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		*/
 		function mintPreSale( uint256 qty_, bytes32 pass_, bool flag_, uint256 passMax_ ) external payable presaleOpen isWhitelisted( _msgSender(), pass_, flag_, passMax_, qty_ ) {
 			uint256 _endSupply_  = _supplyMinted() + qty_;
-			address _account_    = _msgSender();
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {
 				revert CCFoundersKeys_MAX_SUPPLY();
 			}
+
 			if ( qty_ * WL_MINT_PRICE != msg.value ) {
 				revert CCFoundersKeys_INCORRECT_PRICE();
 			}
+
+			address _account_    = _msgSender();
 			_consumeWhitelist( _account_, qty_ );
 			_mint( _account_, qty_ );
 		}
@@ -279,25 +221,21 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		* - There must be enough tokens left to mint outside of the reserve.
 		* - Caller must send enough ether to pay for `qty_` tokens at presale price.
 		* - Caller must be whitelisted.
-		* - `qtyStaked_` cannot be higher than `qty_`.
+		* - If `qtyStaked_` is higher than `qty_`, only `qty_` tokens are staked.
 		*/
 		function mintPreSaleAndStake( uint256 qty_, bytes32 pass_, bool flag_, uint256 passMax_, uint256 qtyStaked_ ) external payable presaleOpen isWhitelisted( _msgSender(), pass_, flag_, passMax_, qty_ ) {
-			if ( qtyStaked_ > qty_ ) {
-				revert CCFoundersKeys_INSUFFICIENT_KEY_BALANCE();
-			}
 			uint256 _endSupply_  = _supplyMinted() + qty_;
-			address _account_    = _msgSender();
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {
 				revert CCFoundersKeys_MAX_SUPPLY();
 			}
+
 			if ( qty_ * WL_MINT_PRICE != msg.value ) {
 				revert CCFoundersKeys_INCORRECT_PRICE();
 			}
+
+			address _account_    = _msgSender();
 			_consumeWhitelist( _account_, qty_ );
-			_mintAndStake( _account_, qtyStaked_ );
-			if ( qtyStaked_ < qty_ ) {
-				_mint( _account_, qty_ - qtyStaked_ );
-			}
+			_mintAndStake( _account_, qty_, qtyStaked_ );
 		}
 
 		/**
@@ -310,17 +248,19 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		* - Caller must send enough ether to pay for `qty_` tokens at public sale price.
 		*/
 		function mint( uint256 qty_ ) external payable saleOpen {
-			uint256 _endSupply_  = _supplyMinted() + qty_;
-			address _account_    = _msgSender();
 			if ( qty_ > MAX_BATCH ) {
 				revert CCFoundersKeys_MAX_BATCH();
 			}
+
+			uint256 _endSupply_  = _supplyMinted() + qty_;
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {
 				revert CCFoundersKeys_MAX_SUPPLY();
 			}
+
 			if ( qty_ * PUBLIC_MINT_PRICE != msg.value ) {
 				revert CCFoundersKeys_INCORRECT_PRICE();
 			}
+			address _account_    = _msgSender();
 			_mint( _account_, qty_ );
 		}
 
@@ -332,66 +272,25 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		* - Sale state must be {SaleState.SALE}.
 		* - There must be enough tokens left to mint outside of the reserve.
 		* - Caller must send enough ether to pay for `qty_` tokens at public sale price.
-		* - `qtyStaked_` cannot be higher than `qty_`.
+		* - If `qtyStaked_` is higher than `qty_`, only `qty_` tokens are staked.
 		*/
 		function mintAndStake( uint256 qty_, uint256 qtyStaked_ ) external payable saleOpen {
-			if ( qtyStaked_ > qty_ ) {
-				revert CCFoundersKeys_INSUFFICIENT_KEY_BALANCE();
-			}
-			uint256 _endSupply_  = _supplyMinted() + qty_;
-			address _account_    = _msgSender();
 			if ( qty_ > MAX_BATCH ) {
 				revert CCFoundersKeys_MAX_BATCH();
 			}
+
+			uint256 _endSupply_  = _supplyMinted() + qty_;
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {
 				revert CCFoundersKeys_MAX_SUPPLY();
 			}
+
 			if ( qty_ * PUBLIC_MINT_PRICE != msg.value ) {
 				revert CCFoundersKeys_INCORRECT_PRICE();
 			}
-			_mintAndStake( _account_, qtyStaked_ );
-			if ( qtyStaked_ < qty_ ) {
-				_mint( _account_, qty_ - qtyStaked_ );
-			}
+			address _account_    = _msgSender();
+			_mintAndStake( _account_, qty_, qtyStaked_ );
 		}
-
-		/**
-		* @dev Stakes the token `tokenId_` to the count of its owner.
-		* 
-		* Requirements:
-		* 
-		* - Caller must be allowed to manage `tokenId_` or its owner's tokens.
-		* - `tokenId_` must exist.
-		*/
-		function stake( uint256 tokenId_ ) external exists( tokenId_ ) {
-			address _operator_ = _msgSender();
-			address _tokenOwner_ = _ownerOf( tokenId_ );
-			bool _isApproved_ = _isApprovedOrOwner( _tokenOwner_, _operator_, tokenId_ );
-
-			if ( ! _isApproved_ ) {
-				revert IERC721_CALLER_NOT_APPROVED();
-			}
-			_stake( _tokenOwner_, tokenId_ );
-		}
-
-		/**
-		* @dev Unstakes the token `tokenId_` and returns it to its owner.
-		* 
-		* Requirements:
-		* 
-		* - Caller must be allowed to manage `tokenId_` or its owner's tokens.
-		* - `tokenId_` must exist.
-		*/
-		function unstake( uint256 tokenId_ ) external exists( tokenId_ ) {
-			address _operator_ = _msgSender();
-			address _tokenOwner_ = _ownerOfStaked[ tokenId_ ];
-			bool _isApproved_ = _isApprovedOrOwner( _tokenOwner_, _operator_, tokenId_ );
-
-			if ( ! _isApproved_ ) {
-				revert IERC721_CALLER_NOT_APPROVED();
-			}
-			_unstake( _tokenOwner_, tokenId_ );
-		}
+	// **************************************
 
 	// **************************************
 	// *****       CONTRACT_OWNER       *****
@@ -439,8 +338,8 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 			if ( _len_ != accounts_.length ) {
 				revert CCFoundersKeys_ARRAY_LENGTH_MISMATCH();
 			}
-			for ( uint256 i = _len_; i > 0; i -- ) {
-				anonClaimList[ accounts_[ i - 1 ] ] = amounts_[ i - 1 ];
+			for ( uint256 i; i < _len_; i ++ ) {
+				anonClaimList[ accounts_[ i ] ] = amounts_[ i ];
 			}
 		}
 
@@ -522,26 +421,27 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 			_amounts_[ 3 ] = _safeShare_;
 			emit PaymentReleased( address( this ), _tos_, _amounts_ );
 		}
+	// **************************************
 
 	// **************************************
 	// *****            VIEW            *****
 	// **************************************
 		/**
-		* @dev Returns the number of tokens staked by `tokenOwner_`.
+		* @dev Returns the number of tokens owned by `tokenOwner_`.
 		*/
-		function balanceOfStaked( address tokenOwner_ ) external view returns ( uint256 ) {
-			return _balanceOfStaked( tokenOwner_ );
+		function balanceOf( address tokenOwner_ ) public view virtual override(ERC721Batch, ERC721BatchStakable) returns ( uint256 balance ) {
+			return ERC721BatchStakable.balanceOf( tokenOwner_ );
 		}
 
 		/**
-		* @dev Returns the owner of the staked token number `tokenId_`.
+		* @dev Returns the owner of token number `tokenId_`.
 		*
 		* Requirements:
 		*
 		* - `tokenId_` must exist.
 		*/
-		function ownerOfStaked( uint256 tokenId_ ) external view exists( tokenId_ ) returns ( address ) {
-			return _ownerOfStaked[ tokenId_ ];
+		function ownerOf( uint256 tokenId_ ) public view virtual override(ERC721Batch, ERC721BatchStakable) exists( tokenId_ ) returns ( address ) {
+			return ERC721BatchStakable.ownerOf( tokenId_ );
 		}
 
 		/**
@@ -558,19 +458,11 @@ contract CCFoundersKeys is ERC721Batch, IERC721Receiver, ERC2981Base, IOwnable, 
 		/**
 		* @dev See {IERC165-supportsInterface}.
 		*/
-		function supportsInterface( bytes4 interfaceId_ ) public view virtual override(ERC721Batch, ERC2981Base) returns ( bool ) {
+		function supportsInterface( bytes4 interfaceId_ ) public view virtual override(ERC721BatchEnumerable, ERC721Batch, ERC2981Base) returns ( bool ) {
 			return 
 				interfaceId_ == type( IERC2981 ).interfaceId ||
-				ERC721Batch.supportsInterface( interfaceId_ );
+				ERC721Batch.supportsInterface( interfaceId_ ) ||
+				ERC721BatchEnumerable.supportsInterface( interfaceId_ );
 		}
-
 	// **************************************
-	// *****            PURE            *****
-	// **************************************
-		/**
-		* @dev Signals that this contract knows how to handle ERC721 tokens.
-		*/
-		function onERC721Received( address, address, uint256, bytes memory ) public override pure returns ( bytes4 ) {
-			return type( IERC721Receiver ).interfaceId;
-		}
 }

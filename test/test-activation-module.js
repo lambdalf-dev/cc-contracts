@@ -3,12 +3,12 @@ const TEST_ACTIVATION = {
 	CORRECT_INPUT : true,
 	INVALID_INPUT : false,
 	// UTILS
-	ERC2981Base    : true,
+	ERC2981Base    : false,
 	IInitializable : false,
-	IOwnable       : true,
-	IPausable      : true,
-	ITradable      : true,
-	IWhitelistable : true,
+	IOwnable       : false,
+	IPausable      : false,
+	ITradable      : false,
+	IWhitelistable : false,
 	// ERC721
 	ERC721A             : false,
 	ERC721B             : false,
@@ -23,7 +23,7 @@ const TEST_ACTIVATION = {
 	ERC721Arr_110       : false,
 	ERC721Arr_111       : false,
 	ERC721Base2         : false,
-	ERC721Batch         : true,
+	ERC721Batch         : false,
 	ERC721Map           : false,
 	ERC721Map_000       : false,
 	ERC721Map_001       : false,
@@ -44,7 +44,7 @@ const TEST_ACTIVATION = {
 	ERC721MapMetadata     : false,
 	ERC721BatchBurnable   : false,
 	ERC721BatchEnumerable : false,
-	ERC721BatchMetadata   : false,
+	ERC721BatchStakable   : false,
 	// ERC20
 	ERC20Base         : false,
 	// ERC20 EXTENSIONS

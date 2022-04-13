@@ -198,12 +198,14 @@ abstract contract ERC721Batch is Context, IERC721Metadata {
 		* Emits a {ConsecutiveTransfer} event.
 		*/
 		function _mint( address to_, uint256 qty_ ) internal virtual {
-			_owners[ _numTokens ] = to_;
-			uint256 _lastToken_ = _numTokens + qty_ - 1;
-			if ( _lastToken_ != _numTokens ) {
+			uint256 _firstToken_ = _numTokens;
+			uint256 _lastToken_ = _firstToken_ + qty_ - 1;
+
+			_owners[ _firstToken_ ] = to_;
+			if ( _lastToken_ > _firstToken_ ) {
 				_owners[ _lastToken_ ] = to_;
 			}
-			emit ConsecutiveTransfer( _numTokens, _lastToken_, address( 0 ), to_ );
+			emit ConsecutiveTransfer( _firstToken_, _lastToken_, address( 0 ), to_ );
 			_numTokens = _lastToken_ + 1;
 		}
 
@@ -275,9 +277,10 @@ abstract contract ERC721Batch is Context, IERC721Metadata {
 		*/
 		function _transfer( address from_, address to_, uint256 tokenId_ ) internal virtual {
 			_tokenApprovals[ tokenId_ ] = address( 0 );
-			uint256 _previousId_ = tokenId_ - 1;
+			uint256 _previousId_ = tokenId_ > 0 ? tokenId_ - 1 : 0;
 			uint256 _nextId_     = tokenId_ + 1;
-			bool _previousShouldUpdate_ = _exists( _previousId_ ) &&
+			bool _previousShouldUpdate_ = _previousId_ < tokenId_ &&
+																		_exists( _previousId_ ) &&
 																		_owners[ _previousId_ ] == address( 0 );
 			bool _nextShouldUpdate_ = _exists( _nextId_ ) &&
 																_owners[ _nextId_ ] == address( 0 );
