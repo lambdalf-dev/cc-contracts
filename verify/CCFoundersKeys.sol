@@ -6,13 +6,13 @@
 
 pragma solidity 0.8.10;
 
-import '../tokens/ERC721/extensions/ERC721BatchEnumerable.sol';
-import '../tokens/ERC721/extensions/ERC721BatchStakable.sol';
-import '../utils/ERC2981Base.sol';
-import '../utils/IOwnable.sol';
-import '../utils/IPausable.sol';
-import '../utils/ITradable.sol';
-import '../utils/IWhitelistable.sol';
+import './ERC721BatchEnumerable.sol';
+import './ERC721BatchStakable.sol';
+import './ERC2981Base.sol';
+import './IOwnable.sol';
+import './IPausable.sol';
+import './ITradable.sol';
+import './IWhitelistable.sol';
 
 contract CCFoundersKeys is ERC721BatchEnumerable, ERC721BatchStakable, ERC2981Base, IOwnable, IPausable, ITradable, IWhitelistable {
 	// Events
