@@ -197,7 +197,7 @@ contract CCFoundersKeys is ERC721BatchEnumerable, ERC721BatchStakable, ERC2981Ba
 		* - Caller must send enough ether to pay for `qty_` tokens at presale price.
 		* - Caller must be whitelisted.
 		*/
-		function mintPreSale( uint256 qty_, bytes32[] memory proof_, uint256 passMax_ ) external payable presaleOpen isWhitelisted( _msgSender(), proof_, passMax_, qty_ ) {
+		function mintPreSale( uint256 qty_, bytes32[] memory proof_ ) external payable presaleOpen isWhitelisted( _msgSender(), proof_, 1, qty_ ) {
 
 			uint256 _endSupply_  = _supplyMinted() + qty_;
 			if ( _endSupply_ > MAX_SUPPLY - _reserve ) {

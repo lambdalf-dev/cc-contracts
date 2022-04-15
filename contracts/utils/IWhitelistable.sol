@@ -57,7 +57,7 @@ abstract contract IWhitelistable {
 			revert IWhitelistable_CONSUMED();
 		}
 
-		if ( ! _computeProof( account_, proof_, passMax_ ) ) {
+		if ( ! _computeProof( account_, proof_ ) ) {
 			revert IWhitelistable_FORBIDDEN();
 		}
 
@@ -69,8 +69,8 @@ abstract contract IWhitelistable {
 		return _res_;
 	}
 
-	function _computeProof( address account_, bytes32[] memory proof_, uint256 passMax_ ) private view returns ( bool ) {
-		bytes32 leaf = keccak256(abi.encodePacked(account_, passMax_));
+	function _computeProof( address account_, bytes32[] memory proof_ ) private view returns ( bool ) {
+		bytes32 leaf = keccak256(abi.encodePacked(account_));
 		return MerkleProof.processProof( proof_, leaf ) == _root;
 	}
 
