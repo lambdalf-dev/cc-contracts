@@ -14,11 +14,6 @@ import "./Context.sol";
 * @dev Required interface of an ERC721 compliant contract.
 */
 abstract contract ERC721Batch is Context, IERC721Metadata {
-	/**
-	* @dev See EIP2309 https://eips.ethereum.org/EIPS/eip-2309
-	*/
-	event ConsecutiveTransfer(uint256 indexed fromTokenId, uint256 indexed toTokenId, address fromAddress, address indexed toAddress);
-
 	// Errors
 	error IERC721_APPROVE_OWNER();
 	error IERC721_APPROVE_CALLER();
@@ -205,7 +200,9 @@ abstract contract ERC721Batch is Context, IERC721Metadata {
 			if ( _lastToken_ > _firstToken_ ) {
 				_owners[ _lastToken_ ] = to_;
 			}
-			emit ConsecutiveTransfer( _firstToken_, _lastToken_, address( 0 ), to_ );
+			for ( uint256 i; i < qty_; i ++ ) {
+				emit Transfer( address( 0 ), to_, tokenId);
+			}
 			_numTokens = _lastToken_ + 1;
 		}
 

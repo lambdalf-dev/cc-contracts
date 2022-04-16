@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+	<script type="text/javascript" src="https://unpkg.com/web3@1.7.0/dist/web3.min.js"></script>
+	<script type="text/javascript" src="https://unpkg.com/merkletreejs@0.2.30/merkletree.js"></script>
+	<script type="text/javascript" src="https://unpkg.com/keccak256@1.0.6/keccak256.js"></script>
+	<script type="text/javascript" src="accesslist.js"></script>
+	<script type="text/javascript" src="ABI.js"></script>
+</head>
+<body>
+
+<button id="connect-button">Connect</button><br />
+<br />
+Quantity: <input id="quantity" type="text" value="1" size="3" />
+<button id="mint-button">Presale Mint</button>
+
+<script>
+class VanillaMint{
+	accounts = [];
+	contract = null;
+	merkle = null;
+	modal = null;
+	normalized = {};
+	runOnce = true;
+	web3 = null;
+
+	constructor(){}
+
+	accountsChanged( accounts ){
+		this.session.wallet.accounts = accounts;
+		document.getElementById( 'connect-button' ).innerText = this.formatAddress( accounts[0] );
+	}
+
+	async connect(){
+		//connect
+		this.accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+		
+		//set chain to Rinkeby.  0x1 for mainnet
+		await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x4' }] });
+		
+		//
+		this.web3 = new Web3( window.ethereum );
+		this.contract = new this.web3.eth.Contract( ABI, '0xfEc2618a0a7e459DF8ab0A094A3A94A79e3A326b' );
+
+		return true;
+	}
+
+	formatAddress( account ){
+		return account.substring( 0, 6 ) +'...'+ account.substring( account.length - 4 );
+	}
+
+	getProof( account, proof ){
+		account = this.normalize( account );
+		const maxQty = this.normalized[ account ];
+		if( maxQty ){
+			const hashed = keccak256( account );
+			proof.push( ...this.merkle.getHexProof( hashed ) );
+			return maxQty;
+
+/*
+			const hexQty = Web3.utils.toHex( maxQty );
+			const trimmed = Web3.utils.stripHexPrefix( hexQty ).padStart( 2, '0' );
+			const combined = `${account}${trimmed}`;
+			const hashed = Web3.utils.keccak256( combined );
+			proof.push( ...this.merkle.getHexProof( hashed ) );
+			return maxQty;
+*/
+		}
+		else{
+			return false;
+		}
+	};
+
+	loadAccessList( accesslist ){
+		this.normalized = {};
+		const values = Object.entries( accesslist ).map(([ account, maxQty ]) => {
+			account = this.normalize( account );
+			this.normalized[ account ] = maxQty;
+			return account;
+
+/*
+			const hexQty = Web3.utils.toHex( maxQty );
+			const trimmed = Web3.utils.stripHexPrefix( hexQty ).padStart( 2, '0' );
+			const combined = `${account}${trimmed}`;
+			return combined;
+			//return Web3.utils.keccak256( combined );
+*/
+		});
+		values.sort();
+
+		const hashes = values.map(account => keccak256( account ));
+		this.merkle = new MerkleTree(hashes, keccak256, { sortPairs: true });
+
+		const merkleRoot = this.merkle.getRoot().toString('hex');
+		console.debug({ merkleRoot });
+	}
+
+	normalize( account ){
+		try{
+			return Web3.utils.toChecksumAddress( account );
+		}
+		catch( err ){
+			console.warn( err );
+			return account;
+		}
+	}
+
+	async handleMint( evt ){
+			if( evt && evt.cancelable )
+				evt.preventDefault();
+		
+			if( !(await this.connect() ) )
+				return;
+
+
+			let price, maxQty;
+			const proof = [];
+			const account = this.accounts[0];
+			const saleState = await this.contract.methods.saleState().call();
+			if( saleState === '2' ){
+				price = await this.contract.methods.PUBLIC_MINT_PRICE().call();
+
+				const quantity = document.getElementById( 'quantity' ).value;
+				const totalBN = Web3.utils.toBN( quantity )
+					.mul( Web3.utils.toBN( price.toString() ) );
+
+				let sendArgs = {
+					from: account,
+					value: totalBN.toString()
+				};
+
+
+				try{
+					await this.contract.methods.mint( quantity ).estimateGas( sendArgs );
+					await this.contract.methods.mint( quantity ).send( sendArgs );
+				}
+				catch( err ){
+					alert( err );
+				}
+			}
+			else if( saleState === '1' ){
+				maxQty = this.getProof( account, proof );
+				if( maxQty ){
+					price = await this.contract.methods.WL_MINT_PRICE().call();
+				}
+				else{
+					alert( `Account ${this.formatAddress( account )} does not have presale access` );
+					return;
+				}
+				
+				const quantity = document.getElementById( 'quantity' ).value;
+				const totalBN = Web3.utils.toBN( quantity )
+					.mul( Web3.utils.toBN( price.toString() ) );
+
+				let sendArgs = {
+					from: account,
+					value: totalBN.toString()
+				};
+				
+				try{
+					debugger;
+					await this.contract.methods.mintPreSale( quantity, proof ).estimateGas( sendArgs );
+					await this.contract.methods.mintPreSale( quantity, proof ).send( sendArgs );
+				}
+				catch( err ){
+					alert( err );
+				}
+			}
+			else{
+				alert( "Sale has not started" );
+				return;
+			}
+	}
+}
+
+window.addEventListener( 'DOMContentLoaded', () => {
+	var minter = new VanillaMint();
+	minter.loadAccessList( accesslist );
+
+	document.getElementById( 'connect-button' ).addEventListener( 'click', () => { minter.connect(); });
+	document.getElementById( 'mint-button' ).addEventListener( 'click', minter.handleMint.bind( minter ) );
+});
+</script>
+</body>
+</html>
