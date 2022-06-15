@@ -1,6 +1,6 @@
 const TEST_ACTIVATION = {
-	CCFoundersKeys : true,
-	CORRECT_INPUT : true,
+	CCFoundersKeys : false,
+	CORRECT_INPUT : false,
 	INVALID_INPUT : false,
 	// UTILS
 	ERC2981Base    : false,

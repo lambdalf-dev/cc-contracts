@@ -6,6 +6,8 @@
 
 pragma solidity 0.8.10;
 
+import "@openzeppelin/contracts/utils/Context.sol";
+
 /**
 * @dev Contract module which provides a basic access control mechanism, where
 * there is an account (an owner) that can be granted exclusive access to
@@ -18,7 +20,7 @@ pragma solidity 0.8.10;
 * `onlyOwner`, which can be applied to your functions to restrict their use to
 * the owner.
 */
-abstract contract IOwnable {
+abstract contract IOwnable is Context {
 	// Errors
 	error IOwnable_NOT_OWNER();
 
@@ -48,7 +50,7 @@ abstract contract IOwnable {
 	* @dev Throws if called by any account other than the owner.
 	*/
 	modifier onlyOwner() {
-		if ( owner() != msg.sender ) {
+		if ( owner() != _msgSender() ) {
 			revert IOwnable_NOT_OWNER();
 		}
 		_;
